@@ -1,0 +1,12 @@
+/.claude
+/.cursorignore
+/.mcp-auth
+/.mcp.json
+/.serena
+/CLAUDE.md
+/data
+/vendor
+/.playwright-mcp/
+
+.gemini/
+gha-creds-*.json
