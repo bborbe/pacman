@@ -166,6 +166,99 @@
       font-weight: bold;
       letter-spacing: 3px;
     }
+
+    .name-input-section {
+      margin: 20px 0;
+    }
+
+    .name-input-section label {
+      display: block;
+      margin-bottom: 10px;
+      color: #f1c40f;
+    }
+
+    .name-input-section input {
+      padding: 10px 15px;
+      font-size: 18px;
+      font-family: 'Courier New', monospace;
+      background: #222;
+      color: #fff;
+      border: 2px solid #f1c40f;
+      border-radius: 5px;
+      text-transform: uppercase;
+      width: 120px;
+      text-align: center;
+    }
+
+    .name-input-section input:focus {
+      outline: none;
+      border-color: #fff;
+    }
+
+    .leaderboard {
+      margin-top: 20px;
+      text-align: left;
+    }
+
+    .leaderboard h3 {
+      text-align: center;
+      color: #f1c40f;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .leaderboard table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .leaderboard th,
+    .leaderboard td {
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    .leaderboard th {
+      color: #f1c40f;
+      border-bottom: 1px solid #444;
+    }
+
+    .leaderboard td {
+      color: #fff;
+    }
+
+    .leaderboard .rank {
+      width: 30px;
+      text-align: center;
+    }
+
+    .leaderboard .name {
+      text-align: left;
+    }
+
+    .leaderboard .score {
+      text-align: right;
+    }
+
+    .leaderboard .highlight {
+      color: #f1c40f;
+      font-weight: bold;
+    }
+
+    .submit-btn {
+      margin-top: 10px;
+      padding: 10px 30px;
+      font-size: 16px;
+      background: #f1c40f;
+      color: #000;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .submit-btn:hover {
+      background: #e67e22;
+    }
   </style>
 </head>
 <body>
@@ -175,7 +268,7 @@
         <div class="panel-label">1UP</div>
         <div class="panel-value" id="score-value">0</div>
       </div>
-      <div class="panel-section">
+      <div class="panel-section" onclick="showLeaderboardOverlay()" style="cursor:pointer;">
         <div class="panel-label">HIGH SCORE</div>
         <div class="panel-value" id="highscore-value">0</div>
       </div>
@@ -190,19 +283,158 @@
   <div id="pause-overlay">PAUSED</div>
   <div id="ready-overlay">READY!</div>
 
+  <div id="leaderboard-overlay" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);color:white;padding:40px;border-radius:15px;text-align:center;display:none;min-width:300px;">
+    <h2 style="color:#f1c40f;margin-bottom:20px;">LEADERBOARD</h2>
+    <div id="leaderboard-standalone" class="leaderboard"></div>
+    <button onclick="hideLeaderboardOverlay()" style="margin-top:20px;padding:10px 30px;font-size:16px;background:#f1c40f;color:#000;border:none;border-radius:5px;cursor:pointer;">CLOSE</button>
+  </div>
+
   <div id="game-over">
     <h2>Game Over</h2>
     <div id="final-score"></div>
+    <div id="name-input-gameover" class="name-input-section" style="display: none;">
+      <label>Enter Your Name:</label>
+      <input type="text" id="player-name-gameover" maxlength="10" placeholder="AAA">
+      <button class="submit-btn" onclick="submitScore('gameover')">Submit</button>
+    </div>
+    <div id="leaderboard-gameover" class="leaderboard"></div>
     <button onclick="restartGame()">Play Again</button>
   </div>
 
   <div id="victory">
     <h2>Level Complete!</h2>
     <div id="victory-score"></div>
+    <div id="name-input-victory" class="name-input-section" style="display: none;">
+      <label>Enter Your Name:</label>
+      <input type="text" id="player-name-victory" maxlength="10" placeholder="AAA">
+      <button class="submit-btn" onclick="submitScore('victory')">Submit</button>
+    </div>
+    <div id="leaderboard-victory" class="leaderboard"></div>
     <button onclick="restartGame()">Next Level</button>
   </div>
 
   <script>
+    // Leaderboard functions
+    const MAX_LEADERBOARD_ENTRIES = 10;
+    let pendingScore = 0;
+
+    function loadLeaderboard() {
+      const saved = localStorage.getItem('pacman-leaderboard');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return [];
+        }
+      }
+      return [];
+    }
+
+    function saveLeaderboard(entries) {
+      localStorage.setItem('pacman-leaderboard', JSON.stringify(entries));
+    }
+
+    function loadLastName() {
+      return localStorage.getItem('pacman-last-name') || '';
+    }
+
+    function saveLastName(name) {
+      localStorage.setItem('pacman-last-name', name);
+    }
+
+    function isHighScore(score) {
+      if (score === 0) return false;
+      const entries = loadLeaderboard();
+      if (entries.length < MAX_LEADERBOARD_ENTRIES) return true;
+      return score > entries[entries.length - 1].score;
+    }
+
+    function addToLeaderboard(name, score) {
+      const entries = loadLeaderboard();
+      entries.push({ name: name.toUpperCase(), score: score });
+      entries.sort((a, b) => b.score - a.score);
+      const trimmed = entries.slice(0, MAX_LEADERBOARD_ENTRIES);
+      saveLeaderboard(trimmed);
+      return trimmed;
+    }
+
+    function renderLeaderboard(containerId, highlightScore = null) {
+      const container = document.getElementById(containerId);
+      const entries = loadLeaderboard();
+
+      if (entries.length === 0) {
+        container.innerHTML = '<h3>TOP SCORES</h3><p style="text-align:center;color:#888;">No scores yet</p>';
+        return;
+      }
+
+      let html = '<h3>TOP SCORES</h3><table><thead><tr><th class="rank">#</th><th class="name">NAME</th><th class="score">SCORE</th></tr></thead><tbody>';
+      entries.forEach((entry, i) => {
+        const isHighlight = highlightScore !== null && entry.score === highlightScore;
+        const cls = isHighlight ? ' class="highlight"' : '';
+        html += `<tr${cls}><td class="rank">${i + 1}</td><td class="name">${entry.name}</td><td class="score">${entry.score}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function submitScore(type) {
+      const inputId = type === 'gameover' ? 'player-name-gameover' : 'player-name-victory';
+      const nameInputSection = type === 'gameover' ? 'name-input-gameover' : 'name-input-victory';
+      const leaderboardId = type === 'gameover' ? 'leaderboard-gameover' : 'leaderboard-victory';
+
+      const nameInput = document.getElementById(inputId);
+      const name = nameInput.value.trim() || 'AAA';
+
+      saveLastName(name);
+      addToLeaderboard(name, pendingScore);
+
+      document.getElementById(nameInputSection).style.display = 'none';
+      renderLeaderboard(leaderboardId, pendingScore);
+    }
+
+    function showLeaderboardOverlay() {
+      renderLeaderboard('leaderboard-standalone');
+      document.getElementById('leaderboard-overlay').style.display = 'block';
+    }
+
+    function hideLeaderboardOverlay() {
+      document.getElementById('leaderboard-overlay').style.display = 'none';
+    }
+
+    // ============================================
+    // GAME CONFIGURATION
+    // ============================================
+    const CONFIG = {
+      // Global game speed multiplier (0.5 = slow, 1 = normal, 2 = fast)
+      gameSpeed: 1.0,
+
+      // Power pellet duration in frames (60 frames = 1 second)
+      powerPelletDuration: 420,      // ~7 seconds (original game level 1)
+
+      // Player settings
+      playerSpeed: 1,                 // Pixels per frame
+      mouthAnimationSpeed: 0.05,      // Mouth open/close speed
+
+      // Ghost settings
+      ghostCount: 4,                  // Number of ghosts (1-4)
+      ghostSpeed: 1,                  // Normal ghost speed
+      ghostFrightenedSpeed: 1,        // Speed when frightened (blue)
+      ghostEatenSpeed: 2,             // Speed when returning to house
+      ghostReleaseDelays: [60, 120, 300, 480],  // Frames before each ghost leaves house
+
+      // Scoring
+      pelletPoints: 10,
+      powerPelletPoints: 50,
+      ghostPoints: [200, 400, 800, 1600],  // Points for eating ghosts in sequence
+
+      // Lives
+      startingLives: 3,
+
+      // Flash effect duration when eating power pellet
+      playerFlashDuration: 20,        // Frames
+    };
+    // ============================================
+
     // Constants
     const TILE_SIZE = 20;
     const MAZE_WIDTH = 28;
@@ -272,19 +504,20 @@
           pixelY: 23 * TILE_SIZE,
           direction: DIR.NONE,
           nextDirection: DIR.NONE,
-          speed: 1,
-          mouthOpen: 0
+          speed: CONFIG.playerSpeed,
+          mouthOpen: 0,
+          flashTimer: 0
         },
         ghosts: [
-          { name: 'Blinky', color: '#FF0000', x: 14, y: 11, pixelX: 14 * TILE_SIZE, pixelY: 11 * TILE_SIZE, direction: DIR.LEFT, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: false, releaseTimer: 60 },
-          { name: 'Pinky', color: '#FFB8FF', x: 14, y: 14, pixelX: 14 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.DOWN, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: 120 },
-          { name: 'Inky', color: '#00FFFF', x: 12, y: 14, pixelX: 12 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.UP, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: 300 },
-          { name: 'Clyde', color: '#FFB852', x: 16, y: 14, pixelX: 16 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.UP, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: 480 }
-        ],
+          { name: 'Blinky', color: '#FF0000', x: 14, y: 11, pixelX: 14 * TILE_SIZE, pixelY: 11 * TILE_SIZE, direction: DIR.LEFT, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: false, releaseTimer: CONFIG.ghostReleaseDelays[0] },
+          { name: 'Pinky', color: '#FFB8FF', x: 14, y: 14, pixelX: 14 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.DOWN, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: CONFIG.ghostReleaseDelays[1] },
+          { name: 'Inky', color: '#00FFFF', x: 12, y: 14, pixelX: 12 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.UP, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: CONFIG.ghostReleaseDelays[2] },
+          { name: 'Clyde', color: '#FFB852', x: 16, y: 14, pixelX: 16 * TILE_SIZE, pixelY: 14 * TILE_SIZE, direction: DIR.UP, mode: 'scatter', frightTimer: 0, eatenTimer: 0, inHouse: true, releaseTimer: CONFIG.ghostReleaseDelays[3] }
+        ].slice(0, CONFIG.ghostCount),
         maze: JSON.parse(JSON.stringify(MAZE)),
         score: 0,
         highScore: 0,
-        lives: 3,
+        lives: CONFIG.startingLives,
         level: 1,
         pelletsRemaining: 0,
         powerMode: false,
@@ -313,18 +546,26 @@
       }
 
       function loadHighScore() {
-        const saved = localStorage.getItem('pacman-high-score');
-        if (saved) {
-          state.highScore = parseInt(saved, 10) || 0;
+        // Get high score from leaderboard (top entry)
+        const entries = loadLeaderboard();
+        if (entries.length > 0) {
+          state.highScore = entries[0].score;
+        } else {
+          state.highScore = 0;
         }
       }
 
       function saveHighScore() {
-        localStorage.setItem('pacman-high-score', state.highScore.toString());
+        // High score is now managed by leaderboard, nothing to save here
+        // The actual saving happens when player enters name on game over
       }
 
       function isWall(x, y) {
-        if (y < 0 || y >= MAZE_HEIGHT || x < 0 || x >= MAZE_WIDTH) return true;
+        if (y < 0 || y >= MAZE_HEIGHT) return true;
+        // Allow tunnel wrap-around (row 14 is the tunnel row)
+        if (x < 0 || x >= MAZE_WIDTH) {
+          return y !== 14; // Only passable at tunnel row
+        }
         return state.maze[y][x] === WALL;
       }
 
@@ -387,7 +628,7 @@
           state.maze = JSON.parse(JSON.stringify(MAZE));
           state.pelletsRemaining = countPellets();
           state.score = 0;
-          state.lives = 3;
+          state.lives = CONFIG.startingLives;
           state.level = 1;
           state.gameOver = false;
           state.victory = false;
@@ -433,6 +674,11 @@
             }
           });
 
+          // Pacman flash timer
+          if (state.pacman.flashTimer > 0) {
+            state.pacman.flashTimer--;
+          }
+
           // Pacman movement
           const pm = state.pacman;
 
@@ -473,7 +719,7 @@
               pm.y = Math.floor(pm.pixelY / TILE_SIZE);
 
               // Animate mouth
-              pm.mouthOpen = (pm.mouthOpen + 0.1) % 1;
+              pm.mouthOpen = (pm.mouthOpen + CONFIG.mouthAnimationSpeed) % 1;
             }
           }
 
@@ -482,7 +728,7 @@
             const tile = state.maze[pm.y][pm.x];
             if (tile === PELLET) {
               state.maze[pm.y][pm.x] = EMPTY;
-              state.score += 10;
+              state.score += CONFIG.pelletPoints;
               state.pelletsRemaining--;
               if (state.score > state.highScore) {
                 state.highScore = state.score;
@@ -490,15 +736,16 @@
               }
             } else if (tile === POWER_PELLET) {
               state.maze[pm.y][pm.x] = EMPTY;
-              state.score += 50;
+              state.score += CONFIG.powerPelletPoints;
               state.pelletsRemaining--;
               state.powerMode = true;
-              state.powerTimer = 240;
+              state.powerTimer = CONFIG.powerPelletDuration;
               state.ghostCombo = 0;
+              pm.flashTimer = CONFIG.playerFlashDuration;
               state.ghosts.forEach(g => {
                 if (g.mode !== 'eaten') {
                   g.mode = 'frightened';
-                  g.frightTimer = 240;
+                  g.frightTimer = CONFIG.powerPelletDuration;
                 }
               });
               if (state.score > state.highScore) {
@@ -572,7 +819,7 @@
 
             // Use integer speed to ensure we hit tile centers
             // Pac-Man speed is 1, ghosts same speed
-            const speed = ghost.mode === 'eaten' ? 2 : (ghost.mode === 'frightened' ? 1 : 1);
+            const speed = ghost.mode === 'eaten' ? CONFIG.ghostEatenSpeed : (ghost.mode === 'frightened' ? CONFIG.ghostFrightenedSpeed : CONFIG.ghostSpeed);
 
             // Move ghost
             ghost.pixelX += ghost.direction.x * speed;
@@ -611,13 +858,21 @@
                   // Random direction
                   ghost.direction = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
                 } else if (ghost.mode === 'eaten') {
-                  // Return to ghost house (13, 11)
-                  const targetX = 13, targetY = 11;
-                  if (ghost.x === targetX && ghost.y === targetY) {
-                    ghost.eatenTimer = 0;
-                    ghost.mode = 'chase';
+                  // Return to ghost house entrance (14, 11), then go inside
+                  const entranceX = 14, entranceY = 11;
+                  const insideX = 14, insideY = 14;
+
+                  if (ghost.x === entranceX && ghost.y === entranceY) {
+                    // At entrance, now go inside
+                    ghost.pixelX = insideX * TILE_SIZE;
+                    ghost.pixelY = insideY * TILE_SIZE;
+                    ghost.x = insideX;
+                    ghost.y = insideY;
+                    ghost.mode = 'scatter';
+                    ghost.inHouse = true;
+                    ghost.releaseTimer = 60; // Short delay before leaving again
                   } else {
-                    ghost.direction = getBestDirection(ghost, possibleDirs, targetX, targetY);
+                    ghost.direction = getBestDirection(ghost, possibleDirs, entranceX, entranceY);
                   }
                 } else if (ghost.mode === 'scatter') {
                   // Each ghost goes to their corner
@@ -683,7 +938,7 @@
               if (ghost.mode === 'frightened') {
                 // Eat ghost - Pac-Man eats the blue ghost!
                 const comboIndex = Math.min(state.ghostCombo, 3);
-                const points = [200, 400, 800, 1600][comboIndex];
+                const points = CONFIG.ghostPoints[comboIndex];
                 state.score += points;
                 state.ghostCombo++;
                 ghost.mode = 'eaten';
@@ -796,7 +1051,12 @@
         const state = gameState.getState();
         const pm = state.pacman;
 
-        ctx.fillStyle = '#FFFF00';
+        // Flash white when power pellet collected
+        if (pm.flashTimer > 0 && Math.floor(pm.flashTimer / 3) % 2 === 0) {
+          ctx.fillStyle = '#FFFFFF';
+        } else {
+          ctx.fillStyle = '#FFFF00';
+        }
         ctx.beginPath();
 
         const centerX = pm.pixelX + TILE_SIZE / 2;
@@ -994,40 +1254,88 @@
     const inputHandler = createInputHandler(gameState, restartGame);
     let animationId = null;
 
-    function gameLoop() {
+    let lastTime = 0;
+    let accumulator = 0;
+    const frameTime = 1000 / 120; // Base frame time (gameSpeed 1.0 = normal arcade speed)
+
+    function gameLoop(currentTime) {
       const state = gameState.getState();
+
+      // Calculate delta time for speed control
+      if (lastTime === 0) lastTime = currentTime;
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
 
       renderer.draw();
       renderer.updateScore();
 
       if (state.gameOver) {
         showGameOver(state.score);
+        lastTime = 0;
         return;
       }
 
       if (state.victory) {
         showVictory(state.score);
+        lastTime = 0;
         return;
       }
 
       if (!state.isPaused) {
-        gameState.update();
+        // Accumulate time scaled by gameSpeed
+        accumulator += deltaTime * CONFIG.gameSpeed;
+
+        // Update game logic at fixed intervals
+        while (accumulator >= frameTime) {
+          gameState.update();
+          accumulator -= frameTime;
+        }
       }
 
       animationId = requestAnimationFrame(gameLoop);
     }
 
     function showGameOver(score) {
+      pendingScore = score;
       const gameOverDiv = document.getElementById('game-over');
       const finalScoreDiv = document.getElementById('final-score');
       finalScoreDiv.textContent = `Final Score: ${score}`;
+
+      const nameInputSection = document.getElementById('name-input-gameover');
+      const nameInput = document.getElementById('player-name-gameover');
+
+      if (isHighScore(score)) {
+        nameInput.value = loadLastName();
+        nameInputSection.style.display = 'block';
+        renderLeaderboard('leaderboard-gameover');
+        nameInput.focus();
+      } else {
+        nameInputSection.style.display = 'none';
+        renderLeaderboard('leaderboard-gameover');
+      }
+
       gameOverDiv.style.display = 'block';
     }
 
     function showVictory(score) {
+      pendingScore = score;
       const victoryDiv = document.getElementById('victory');
       const victoryScoreDiv = document.getElementById('victory-score');
       victoryScoreDiv.textContent = `Score: ${score}`;
+
+      const nameInputSection = document.getElementById('name-input-victory');
+      const nameInput = document.getElementById('player-name-victory');
+
+      if (isHighScore(score)) {
+        nameInput.value = loadLastName();
+        nameInputSection.style.display = 'block';
+        renderLeaderboard('leaderboard-victory');
+        nameInput.focus();
+      } else {
+        nameInputSection.style.display = 'none';
+        renderLeaderboard('leaderboard-victory');
+      }
+
       victoryDiv.style.display = 'block';
     }
 
@@ -1037,9 +1345,24 @@
       document.getElementById('victory').style.display = 'none';
       document.getElementById('pause-overlay').style.display = 'none';
       document.getElementById('ready-overlay').style.display = 'block';
+      lastTime = 0;
+      accumulator = 0;
       gameState.init();
       animationId = requestAnimationFrame(gameLoop);
     }
+
+    // Parse URL parameters to override CONFIG
+    (function applyUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      for (const [key, value] of params) {
+        if (CONFIG.hasOwnProperty(key)) {
+          const numValue = parseFloat(value);
+          if (!isNaN(numValue)) {
+            CONFIG[key] = numValue;
+          }
+        }
+      }
+    })();
 
     // Start the game
     inputHandler.bindKeys();
