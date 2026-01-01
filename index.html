@@ -421,6 +421,7 @@
       ghostFrightenedSpeed: 1,        // Speed when frightened (blue)
       ghostEatenSpeed: 2,             // Speed when returning to house
       ghostReleaseDelays: [60, 120, 300, 480],  // Frames before each ghost leaves house
+      ghostRandomness: 0.1,           // Chance (0-1) ghost picks random direction instead of optimal
 
       // Scoring
       pelletPoints: 10,
@@ -883,7 +884,12 @@
                     'Clyde':  { x: 0, y: 30 }    // Bottom-left
                   };
                   const target = scatterTargets[ghost.name];
-                  ghost.direction = getBestDirection(ghost, possibleDirs, target.x, target.y);
+                  // Add randomness to movement
+                  if (Math.random() < CONFIG.ghostRandomness && possibleDirs.length > 1) {
+                    ghost.direction = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+                  } else {
+                    ghost.direction = getBestDirection(ghost, possibleDirs, target.x, target.y);
+                  }
                 } else {
                   // Chase mode - unique targeting per ghost
                   let targetX, targetY;
@@ -920,7 +926,12 @@
                     targetY = pm.y;
                   }
 
-                  ghost.direction = getBestDirection(ghost, possibleDirs, targetX, targetY);
+                  // Add randomness to movement
+                  if (Math.random() < CONFIG.ghostRandomness && possibleDirs.length > 1) {
+                    ghost.direction = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+                  } else {
+                    ghost.direction = getBestDirection(ghost, possibleDirs, targetX, targetY);
+                  }
                 }
               }
             }
